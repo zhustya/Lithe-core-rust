@@ -27,7 +27,7 @@ use lithe_protocol::{CoreError, ErrorCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 const GRAPH_PROJECTION_VERSION: u32 = 1;
 /// Largest commit list (scoped window or repository context) one request may carry: the
@@ -53,6 +53,10 @@ struct Request {
     visible_hashes: Option<Vec<String>>,
     #[serde(default)]
     display_mode: DisplayMode,
+    /// How screen columns are assigned. `compact` follows IntelliJ and may reuse a column
+    /// between rows; `stable` keeps one column per branch line until the line ends.
+    #[serde(default)]
+    lane_mode: LaneMode,
     /// When present, the response lists the commits reachable from this local branch.
     #[serde(default)]
     current_branch: Option<String>,
@@ -81,6 +85,20 @@ enum DisplayMode {
     #[default]
     Compact,
     Expanded,
+}
+
+/// How the projection assigns screen columns to the visible graph.
+#[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+enum LaneMode {
+    /// IntelliJ's comparator: a column is a position in the row, so a line may move into a
+    /// column another branch used in an earlier row.
+    Compact,
+    /// A stable column per branch line: a line keeps its column from its fork to its merge,
+    /// and a column is reused only after its line ends. The default for `git.graphProjection`;
+    /// a client that needs the historical IDEA columns asks for `compact`.
+    #[default]
+    Stable,
 }
 
 /// Long-edge limits taken from IntelliJ's `PrintElementGeneratorImpl`.
@@ -737,6 +755,8 @@ fn missing_parents(
 enum Element {
     Node,
     Edge(usize),
+    /// An empty column in a stable layout.
+    Gap,
 }
 
 /// Everything the element comparator and edge colors need.
@@ -782,7 +802,9 @@ impl Layout<'_> {
     /// also order crossing edges without keeping unrelated empty lane slots.
     fn compare(&self, row: usize, left: Element, right: Element) -> i64 {
         match (left, right) {
-            (Element::Node, Element::Node) => 0,
+            (Element::Node, Element::Node) | (Element::Gap, Element::Gap) => 0,
+            (Element::Gap, _) => 1,
+            (_, Element::Gap) => -1,
             (Element::Edge(e), Element::Node) => self.compare_edge_node(&self.edges[e], row),
             (Element::Node, Element::Edge(e)) => -self.compare_edge_node(&self.edges[e], row),
             (Element::Edge(a), Element::Edge(b)) => {
@@ -813,6 +835,7 @@ fn element_key(element: Element) -> i64 {
     match element {
         Element::Node => -1,
         Element::Edge(id) => id as i64,
+        Element::Gap => i64::MAX,
     }
 }
 
@@ -1038,13 +1061,180 @@ fn project_commits(
         colors: &colors,
         edges: &edges,
     };
-    build_rows(&layout, labels, options)
+    build_rows(&layout, labels, options, request.lane_mode)
+}
+
+/// Assigns one stable screen column per branch line for `LaneMode::Stable`. A line is the
+/// chain of edges a node continues through its first parent: the column is handed from a
+/// commit to its first parent, allocated at a fork, and released when the line ends at a
+/// merge, a root, or an unloaded parent. Columns use the lowest one free at the time, so a
+/// branch that ended earlier does not keep widening the graph.
+///
+/// Endpoint rows record the node's column in `positions`; crossing rows record the edge's
+/// own column. That keeps both halves of a print element meeting at the row boundary
+/// midpoint even when a line moves between columns.
+fn stable_columns(
+    layout: &Layout,
+    adjacent: &[Vec<usize>],
+    crossing: &[Vec<usize>],
+    positions: &mut [HashMap<usize, usize>],
+    node_positions: &mut [usize],
+    lane_counts: &mut [usize],
+    elements: &mut [Vec<Element>],
+) {
+    struct Allocator {
+        used: BTreeSet<usize>,
+        free: BTreeSet<usize>,
+        next: usize,
+    }
+
+    impl Allocator {
+        fn new() -> Self {
+            Self {
+                used: BTreeSet::new(),
+                free: BTreeSet::new(),
+                next: 0,
+            }
+        }
+
+        fn alloc(&mut self) -> usize {
+            if let Some(&column) = self.free.iter().next() {
+                self.free.remove(&column);
+                self.used.insert(column);
+                column
+            } else {
+                let column = self.next;
+                self.next += 1;
+                self.used.insert(column);
+                column
+            }
+        }
+
+        fn release(&mut self, column: usize) {
+            if self.used.remove(&column) {
+                self.free.insert(column);
+            }
+        }
+    }
+
+    let edges = layout.edges;
+    let row_count = adjacent.len();
+    if row_count == 0 {
+        return;
+    }
+    let mut edge_column = vec![None; edges.len()];
+    let mut last_present = edges
+        .iter()
+        .map(|edge| edge.down.unwrap_or(edge.up))
+        .collect::<Vec<_>>();
+    for (row, ids) in crossing.iter().enumerate() {
+        for &id in ids {
+            last_present[id] = last_present[id].max(row);
+        }
+    }
+    let mut terminals = vec![Vec::<usize>::new(); row_count];
+    for (id, edge) in edges.iter().enumerate() {
+        if edge.down.is_none() {
+            terminals[last_present[id].min(row_count - 1)].push(id);
+        }
+    }
+
+    let mut columns = Allocator::new();
+    for row in 0..row_count {
+        let incoming = adjacent[row]
+            .iter()
+            .copied()
+            .filter(|&id| edges[id].down == Some(row))
+            .collect::<Vec<_>>();
+        let outgoing = adjacent[row]
+            .iter()
+            .copied()
+            .filter(|&id| edges[id].up == row)
+            .collect::<Vec<_>>();
+        let first_parent = layout.commits[layout.visible[row]].parent_hashes.first();
+        let first_edge = outgoing
+            .iter()
+            .copied()
+            .find(|&id| Some(&edges[id].parent_hash) == first_parent);
+
+        for &id in &incoming {
+            if edge_column[id].is_none() {
+                edge_column[id] = Some(columns.alloc());
+            }
+        }
+        // The mainline incoming edge (lowest permanent layout index) hands its column to
+        // the commit; every other incoming line ends at the dot.
+        let preferred = incoming
+            .iter()
+            .copied()
+            .min_by_key(|&id| (layout.indices[layout.visible[edges[id].up]], id));
+        let node_column = match preferred {
+            Some(id) => edge_column[id].expect("incoming edge has a column"),
+            None => columns.alloc(),
+        };
+
+        if let Some(first) = first_edge {
+            edge_column[first] = Some(node_column);
+        }
+        for &id in &outgoing {
+            if Some(id) == first_edge {
+                continue;
+            }
+            let column = columns.alloc();
+            edge_column[id] = Some(column);
+        }
+
+        for &id in &adjacent[row] {
+            positions[row].insert(id, node_column);
+        }
+        for &id in &crossing[row] {
+            let column = edge_column[id].unwrap_or_else(|| {
+                let column = columns.alloc();
+                edge_column[id] = Some(column);
+                column
+            });
+            positions[row].insert(id, column);
+        }
+
+        node_positions[row] = node_column;
+        let mut lane_count = node_column + 1;
+        for &id in adjacent[row].iter().chain(crossing[row].iter()) {
+            lane_count = lane_count.max(edge_column[id].expect("edge has a column") + 1);
+        }
+        lane_counts[row] = lane_count;
+
+        let mut row_elements = vec![Element::Gap; lane_count];
+        debug_assert!(matches!(row_elements[node_column], Element::Gap));
+        row_elements[node_column] = Element::Node;
+        for &id in &crossing[row] {
+            let column = edge_column[id].expect("crossing edge has a column");
+            debug_assert!(matches!(row_elements[column], Element::Gap));
+            row_elements[column] = Element::Edge(id);
+        }
+        elements[row] = row_elements;
+
+        // Columns end after this row unless the first parent continues the node's line.
+        for &id in &incoming {
+            if Some(id) != preferred {
+                columns.release(edge_column[id].expect("incoming edge has a column"));
+            }
+        }
+        if first_edge.is_none() {
+            columns.release(node_column);
+        }
+        for &id in &terminals[row] {
+            if let Some(column) = edge_column[id] {
+                columns.release(column);
+            }
+        }
+    }
 }
 
 fn build_rows(
     layout: &Layout,
     labels: &[Vec<GraphLabel>],
     options: DisplayOptions,
+    lane_mode: LaneMode,
 ) -> GraphProjection {
     let edges = layout.edges;
     let row_count = layout.visible.len();
@@ -1078,25 +1268,51 @@ fn build_rows(
 
     let mut positions = vec![HashMap::<usize, usize>::new(); row_count];
     let mut node_positions = vec![0usize; row_count];
-    for row in 0..row_count {
-        stable_sort(&mut elements[row], |left, right| {
-            let order = layout.compare(row, left, right);
-            if order == 0 {
-                element_key(left) < element_key(right)
-            } else {
-                order < 0
-            }
-        });
-        for (position, element) in elements[row].iter().enumerate() {
-            match element {
-                Element::Node => {
-                    node_positions[row] = position;
-                    for &edge in &adjacent[row] {
-                        positions[row].insert(edge, position);
-                    }
+    let mut lane_counts = vec![0usize; row_count];
+    if lane_mode == LaneMode::Stable {
+        let crossing = elements
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .filter_map(|element| match element {
+                        Element::Edge(id) => Some(*id),
+                        Element::Node | Element::Gap => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        stable_columns(
+            layout,
+            &adjacent,
+            &crossing,
+            &mut positions,
+            &mut node_positions,
+            &mut lane_counts,
+            &mut elements,
+        );
+    } else {
+        for row in 0..row_count {
+            stable_sort(&mut elements[row], |left, right| {
+                let order = layout.compare(row, left, right);
+                if order == 0 {
+                    element_key(left) < element_key(right)
+                } else {
+                    order < 0
                 }
-                Element::Edge(edge) => {
-                    positions[row].insert(*edge, position);
+            });
+            lane_counts[row] = elements[row].len();
+            for (position, element) in elements[row].iter().enumerate() {
+                match element {
+                    Element::Node => {
+                        node_positions[row] = position;
+                        for &edge in &adjacent[row] {
+                            positions[row].insert(edge, position);
+                        }
+                    }
+                    Element::Edge(edge) => {
+                        positions[row].insert(*edge, position);
+                    }
+                    Element::Gap => {}
                 }
             }
         }
@@ -1109,10 +1325,12 @@ fn build_rows(
             let own = [match element {
                 Element::Edge(id) => *id,
                 Element::Node => usize::MAX,
+                Element::Gap => continue,
             }];
             let ids: &[usize] = match element {
                 Element::Edge(_) => &own,
                 Element::Node => &adjacent[row],
+                Element::Gap => continue,
             };
             for &id in ids {
                 let edge = &edges[id];
@@ -1176,7 +1394,7 @@ fn build_rows(
         rows.push(GraphRow {
             commit_hash: layout.commits[node].hash.clone(),
             lane: node_positions[row],
-            lane_count: elements[row].len(),
+            lane_count: lane_counts[row],
             color_id: layout.colors[node],
             layout_index: layout.indices[node],
             incoming_lane_colors: elements[row]
@@ -1184,6 +1402,7 @@ fn build_rows(
                 .map(|element| match element {
                     Element::Edge(id) => layout.edge_color(&edges[*id]),
                     Element::Node => layout.colors[node],
+                    Element::Gap => 0,
                 })
                 .collect(),
             parent_edges: adjacent[row]
@@ -1205,10 +1424,15 @@ fn build_rows(
             print_elements: prints,
         });
     }
+    let lane_count = lane_counts.iter().copied().max().unwrap_or(0);
     GraphProjection {
         version: GRAPH_PROJECTION_VERSION,
-        lane_count: elements.iter().map(Vec::len).max().unwrap_or(0),
-        recommended_lane_count: recommended_width(row_count, edges, options),
+        lane_count,
+        recommended_lane_count: if lane_mode == LaneMode::Stable {
+            lane_count
+        } else {
+            recommended_width(row_count, edges, options)
+        },
         has_missing_parents: edges.iter().any(|edge| edge.down.is_none()),
         rows,
         current_branch_hashes: Vec::new(),

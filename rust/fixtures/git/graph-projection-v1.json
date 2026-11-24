@@ -4,7 +4,7 @@
     {
       "name": "linearHistory",
       "description": "One lane, one color; HEAD and branch labels split from the checkout decoration.",
-      "request": {"commits":[{"hash":"C","parentHashes":["B"],"decorations":"HEAD -> main"},{"hash":"B","parentHashes":["A"]},{"hash":"A"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"C","parentHashes":["B"],"decorations":"HEAD -> main"},{"hash":"B","parentHashes":["A"]},{"hash":"A"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -54,7 +54,7 @@
     {
       "name": "forkAndMerge",
       "description": "A merge opens a second lane for its later parent and the branch converges into the first-parent lane.",
-      "request": {"commits":[{"hash":"M","parentHashes":["D","C"]},{"hash":"D","parentHashes":["B"]},{"hash":"C","parentHashes":["B"]},{"hash":"B"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"M","parentHashes":["D","C"]},{"hash":"D","parentHashes":["B"]},{"hash":"C","parentHashes":["B"]},{"hash":"B"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -128,7 +128,7 @@
     {
       "name": "octopusMerge",
       "description": "Three merge parents fan out to three lanes and converge on the root.",
-      "request": {"commits":[{"hash":"O","parentHashes":["P1","P2","P3"]},{"hash":"P1","parentHashes":["R"]},{"hash":"P2","parentHashes":["R"]},{"hash":"P3","parentHashes":["R"]},{"hash":"R"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"O","parentHashes":["P1","P2","P3"]},{"hash":"P1","parentHashes":["R"]},{"hash":"P2","parentHashes":["R"]},{"hash":"P3","parentHashes":["R"]},{"hash":"R"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -230,7 +230,7 @@
     {
       "name": "headOrdering",
       "description": "origin/main seeds the layout before local main, other branches, tags, and unreferenced tips.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [
           {"hash":"untagged","parentHashes":["root"]},
           {"hash":"feature-b","parentHashes":["root"],"decorations":"feature/b"},
@@ -353,7 +353,7 @@
     {
       "name": "naturalHeadOrder",
       "description": "Equal-priority branches order by natural name, so release/2 precedes release/10.",
-      "request": {"commits":[{"hash":"r10","parentHashes":["root"],"decorations":"release/10"},{"hash":"r2","parentHashes":["root"],"decorations":"release/2"},{"hash":"root"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"r10","parentHashes":["root"],"decorations":"release/10"},{"hash":"r2","parentHashes":["root"],"decorations":"release/2"},{"hash":"root"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -407,7 +407,7 @@
     {
       "name": "remoteNames",
       "description": "A bare remote-tracking name is typed as remote only when the host supplies the remote short names.",
-      "request": {"commits":[{"hash":"local","parentHashes":["root"],"decorations":"main"},{"hash":"remote","parentHashes":["root"],"decorations":"upstream/work"},{"hash":"root"}],"remoteNames":["upstream/work"]},
+      "request": {"laneMode":"compact","commits":[{"hash":"local","parentHashes":["root"],"decorations":"main"},{"hash":"remote","parentHashes":["root"],"decorations":"upstream/work"},{"hash":"root"}],"remoteNames":["upstream/work"]},
       "response": {
         "version": 1,
         "rows": [
@@ -461,7 +461,7 @@
     {
       "name": "pageOne",
       "description": "The first history page ends with a parent outside the loaded window.",
-      "request": {"commits":[{"hash":"m3","parentHashes":["m2"],"decorations":"HEAD -> main"},{"hash":"m2","parentHashes":["m1"]},{"hash":"m1","parentHashes":["m0"]}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"m3","parentHashes":["m2"],"decorations":"HEAD -> main"},{"hash":"m2","parentHashes":["m1"]},{"hash":"m1","parentHashes":["m0"]}]},
       "response": {
         "version": 1,
         "rows": [
@@ -511,7 +511,7 @@
     {
       "name": "pageTwo",
       "description": "The cumulative window after loading the next page resolves the missing parent.",
-      "request": {"commits":[{"hash":"m3","parentHashes":["m2"],"decorations":"HEAD -> main"},{"hash":"m2","parentHashes":["m1"]},{"hash":"m1","parentHashes":["m0"]},{"hash":"m0","parentHashes":["m-1"]},{"hash":"m-1"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"m3","parentHashes":["m2"],"decorations":"HEAD -> main"},{"hash":"m2","parentHashes":["m1"]},{"hash":"m1","parentHashes":["m0"]},{"hash":"m0","parentHashes":["m-1"]},{"hash":"m-1"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -589,7 +589,7 @@
     {
       "name": "windowAfterRefresh",
       "description": "A refresh adds a newer commit; main keeps its color because the head fragment is keyed by name.",
-      "request": {"commits":[{"hash":"m4","parentHashes":["m3"],"decorations":"HEAD -> main"},{"hash":"m3","parentHashes":["m2"]},{"hash":"m2","parentHashes":["m1"]},{"hash":"m1","parentHashes":["m0"]},{"hash":"m0"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"m4","parentHashes":["m3"],"decorations":"HEAD -> main"},{"hash":"m3","parentHashes":["m2"]},{"hash":"m2","parentHashes":["m1"]},{"hash":"m1","parentHashes":["m0"]},{"hash":"m0"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -667,7 +667,7 @@
     {
       "name": "branchScopeWithRepositoryContext",
       "description": "A branch scope keeps the repository graph's layout indices, colors, and base order.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [{"hash":"side","parentHashes":["root"],"decorations":"HEAD -> feature"},{"hash":"root"}],
         "repositoryCommits": [{"hash":"main-tip","parentHashes":["root"],"decorations":"origin/main"},{"hash":"side","parentHashes":["root"],"decorations":"HEAD -> feature"},{"hash":"root"}]
       },
@@ -706,7 +706,7 @@
     {
       "name": "incompleteRepositoryContext",
       "description": "A context that does not cover every scoped commit is ignored, never dropping commits.",
-      "request": {"commits":[{"hash":"tip","parentHashes":["root"]},{"hash":"root"}],"repositoryCommits":[{"hash":"root"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"tip","parentHashes":["root"]},{"hash":"root"}],"repositoryCommits":[{"hash":"root"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -742,7 +742,7 @@
     {
       "name": "duplicateCommits",
       "description": "A repeated hash keeps only its first row, so overlapping pages cannot draw a commit twice.",
-      "request": {"commits":[{"hash":"b","parentHashes":["a"]},{"hash":"a"},{"hash":"b","parentHashes":["a"]}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"b","parentHashes":["a"]},{"hash":"a"},{"hash":"b","parentHashes":["a"]}]},
       "response": {
         "version": 1,
         "rows": [
@@ -778,7 +778,7 @@
     {
       "name": "filteredDottedAncestor",
       "description": "Hidden linear ancestors collapse into one dotted edge between the visible endpoints.",
-      "request": {"commits":[{"hash":"a","parentHashes":["b"]},{"hash":"b","parentHashes":["c"]},{"hash":"c","parentHashes":["d"]},{"hash":"d"}],"visibleHashes":["a","d"]},
+      "request": {"laneMode":"compact","commits":[{"hash":"a","parentHashes":["b"]},{"hash":"b","parentHashes":["c"]},{"hash":"c","parentHashes":["d"]},{"hash":"d"}],"visibleHashes":["a","d"]},
       "response": {
         "version": 1,
         "rows": [
@@ -814,7 +814,7 @@
     {
       "name": "filteredHiddenDiamond",
       "description": "Direct merge parents stay solid; a visible ancestor reached only through hidden commits is dotted.",
-      "request": {"commits":[{"hash":"m","parentHashes":["x","y"]},{"hash":"x","parentHashes":["base"]},{"hash":"y","parentHashes":["base"]},{"hash":"base","parentHashes":["root"]},{"hash":"root"}],"visibleHashes":["m","x","root"]},
+      "request": {"laneMode":"compact","commits":[{"hash":"m","parentHashes":["x","y"]},{"hash":"x","parentHashes":["base"]},{"hash":"y","parentHashes":["base"]},{"hash":"base","parentHashes":["root"]},{"hash":"root"}],"visibleHashes":["m","x","root"]},
       "response": {
         "version": 1,
         "rows": [
@@ -864,7 +864,7 @@
     {
       "name": "filteredDirectEdgeWins",
       "description": "A direct parent wins over a second path through hidden commits to the same visible ancestor.",
-      "request": {"commits":[{"hash":"top","parentHashes":["mid","low"]},{"hash":"mid","parentHashes":["low"]},{"hash":"low"}],"visibleHashes":["top","low"]},
+      "request": {"laneMode":"compact","commits":[{"hash":"top","parentHashes":["mid","low"]},{"hash":"mid","parentHashes":["low"]},{"hash":"low"}],"visibleHashes":["top","low"]},
       "response": {
         "version": 1,
         "rows": [
@@ -900,7 +900,7 @@
     {
       "name": "filteredMissingParents",
       "description": "Hidden commits project their unloaded parents onto the visible descendants; unrelated hidden roots add nothing.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [
           {"hash":"a","parentHashes":["left","right","missing"]},
           {"hash":"peer","parentHashes":["left"]},
@@ -953,7 +953,7 @@
     {
       "name": "filteredBoundaryStopsAtVisible",
       "description": "Unloaded-parent propagation stops at a visible ancestor, which owns its own continuation.",
-      "request": {"commits":[{"hash":"a","parentHashes":["b"]},{"hash":"b","parentHashes":["c"]},{"hash":"c","parentHashes":["missing"]}],"visibleHashes":["a","b"]},
+      "request": {"laneMode":"compact","commits":[{"hash":"a","parentHashes":["b"]},{"hash":"b","parentHashes":["c"]},{"hash":"c","parentHashes":["missing"]}],"visibleHashes":["a","b"]},
       "response": {
         "version": 1,
         "rows": [
@@ -989,13 +989,13 @@
     {
       "name": "filteredEmpty",
       "description": "A filter that matches nothing produces no rows and no missing-history notice.",
-      "request": {"commits":[{"hash":"a","parentHashes":["b"]}],"visibleHashes":[]},
+      "request": {"laneMode":"compact","commits":[{"hash":"a","parentHashes":["b"]}],"visibleHashes":[]},
       "response": {"version":1,"rows":[],"laneCount":0,"recommendedLaneCount":0,"hasMissingParents":false,"currentBranchHashes":[]}
     },
     {
       "name": "missingParentLastRow",
       "description": "An unloaded parent draws a terminal arrow on the next row, never a fabricated target.",
-      "request": {"commits":[{"hash":"a","parentHashes":["b","b"]}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"a","parentHashes":["b","b"]}]},
       "response": {
         "version": 1,
         "rows": [
@@ -1020,7 +1020,7 @@
     {
       "name": "compactLongEdge",
       "description": "A 39-row edge exceeds the 30-row compact limit, so only its two ends are drawn, each with a navigation arrow.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [
           {"hash":"0","parentHashes":["1","39"]},
           {"hash":"1","parentHashes":["2"]},
@@ -1641,7 +1641,7 @@
     {
       "name": "currentBranchAncestry",
       "description": "currentBranch lists every ancestor, following all merge parents through the repository context.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [{"hash":"head","parentHashes":["left","merged"],"decorations":"HEAD -> main"},{"hash":"other","parentHashes":["base"],"decorations":"other"},{"hash":"left","parentHashes":["base"]}],
         "repositoryCommits": [{"hash":"merged","parentHashes":["base"]},{"hash":"base","parentHashes":["missing"]}],
         "currentBranch": "main"
@@ -1708,7 +1708,7 @@
     {
       "name": "expandedMode",
       "description": "Expanded mode keeps a 39-row edge as a full lane with no compaction.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [
           {"hash":"0","parentHashes":["1","39"]},
           {"hash":"1","parentHashes":["2"]},
@@ -2402,7 +2402,7 @@
     {
       "name": "shiftedForks",
       "description": "Forks shift columns between rows while every half-edge keeps its identity and color.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [
           {"hash":"0","parentHashes":["1"],"decorations":"HEAD -> main"},
           {"hash":"1","parentHashes":["3","2"],"decorations":"feature"},
@@ -2519,7 +2519,7 @@
     {
       "name": "missingParentBesideRoot",
       "description": "An unloaded parent has no navigation target and does not connect to an unrelated commit.",
-      "request": {"commits":[{"hash":"tip","parentHashes":["missing"]},{"hash":"other"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"tip","parentHashes":["missing"]},{"hash":"other"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -2558,7 +2558,7 @@
     {
       "name": "decoratedChain",
       "description": "A linear history whose commits carry unrelated decorations stays in one lane.",
-      "request": {"commits":[{"hash":"a","parentHashes":["b"],"decorations":"keep-a"},{"hash":"b","parentHashes":["c"]},{"hash":"c","decorations":"keep-c"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"a","parentHashes":["b"],"decorations":"keep-a"},{"hash":"b","parentHashes":["c"]},{"hash":"c","decorations":"keep-c"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -2608,7 +2608,7 @@
     {
       "name": "filteredDecoratedChain",
       "description": "Filtering out the middle commit of a chain leaves one dotted edge between the matches.",
-      "request": {"commits":[{"hash":"a","parentHashes":["b"],"decorations":"keep-a"},{"hash":"b","parentHashes":["c"]},{"hash":"c","decorations":"keep-c"}],"visibleHashes":["a","c"]},
+      "request": {"laneMode":"compact","commits":[{"hash":"a","parentHashes":["b"],"decorations":"keep-a"},{"hash":"b","parentHashes":["c"]},{"hash":"c","decorations":"keep-c"}],"visibleHashes":["a","c"]},
       "response": {
         "version": 1,
         "rows": [
@@ -2644,7 +2644,7 @@
     {
       "name": "singleCommit",
       "description": "A lone commit is one node in one lane with no routes.",
-      "request": {"commits":[{"hash":"tip"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"tip"}]},
       "response": {
         "version": 1,
         "rows": [{"commitHash":"tip","lane":0,"laneCount":1,"colorId":0,"layoutIndex":1,"incomingLaneColors":[0],"parentEdges":[],"labels":[],"printElements":[]}],
@@ -2657,7 +2657,7 @@
     {
       "name": "headAndRoot",
       "description": "The checked-out commit and its root share one lane and one color.",
-      "request": {"commits":[{"hash":"head","parentHashes":["root"],"decorations":"HEAD -> main"},{"hash":"root"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"head","parentHashes":["root"],"decorations":"HEAD -> main"},{"hash":"root"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -2693,7 +2693,7 @@
     {
       "name": "decoratedTip",
       "description": "HEAD, local, remote, and tag decorations on one commit become four typed labels.",
-      "request": {"commits":[{"hash":"tip","decorations":"HEAD -> master, origin/master, tag: v1.0.0"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"tip","decorations":"HEAD -> master, origin/master, tag: v1.0.0"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -2723,7 +2723,7 @@
     {
       "name": "namedMergeEndpoint",
       "description": "Two named lanes meet at the merge base and keep separate colors up to the node.",
-      "request": {"commits":[{"hash":"merge","parentHashes":["main","side"],"decorations":"HEAD -> main"},{"hash":"main","parentHashes":["root"]},{"hash":"side","parentHashes":["root"],"decorations":"feature"},{"hash":"root"}]},
+      "request": {"laneMode":"compact","commits":[{"hash":"merge","parentHashes":["main","side"],"decorations":"HEAD -> main"},{"hash":"main","parentHashes":["root"]},{"hash":"side","parentHashes":["root"],"decorations":"feature"},{"hash":"root"}]},
       "response": {
         "version": 1,
         "rows": [
@@ -2797,7 +2797,7 @@
     {
       "name": "wideMerge",
       "description": "An eight-parent merge widens its own rows while rows outside the cluster stay narrow.",
-      "request": {
+      "request": {"laneMode":"compact",
         "commits": [
           {"hash":"0","parentHashes":["1"],"decorations":"HEAD -> main"},
           {"hash":"1","parentHashes":["2"]},

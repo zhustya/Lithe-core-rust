@@ -1882,7 +1882,7 @@ commit. `rust/fixtures/git/history-window-v1.json` defines the rules.
 
 `git.graphProjection` is a pure projection of one loaded history window; it never
 starts Git. The request is `{ "commits": [{ "hash", "parentHashes", "decorations" }],
-"remoteNames"?, "repositoryCommits"?, "visibleHashes"?, "displayMode"?,
+"remoteNames"?, "repositoryCommits"?, "visibleHashes"?, "displayMode"?, "laneMode"?,
 "currentBranch"?, "checkedOutHeads"? }`: `commits` are in Git's child-before-parent order, `remoteNames`
 are the remote short names that type a bare remote-tracking decoration,
 `repositoryCommits` is the complete repository window that fixes the permanent layout
@@ -1909,8 +1909,17 @@ Each visible row carries `commitHash`, integer `lane` and `laneCount`, a signed
 pixels, curves, and the mapping from a color ID to a theme color; `colorId` `0` means
 an unreferenced fragment. Requests over 100,000 commits, the largest Git Log a
 `git.historyPage` stream reads, fail with `invalid_request`.
-`rust/fixtures/git/graph-projection-v1.json` defines the rules and
-`rust/fixtures/git/graph-idea/` holds the pinned IntelliJ oracles.
+
+`laneMode` selects how screen columns are assigned. `stable` (the default) gives every
+branch line one column from its fork to the merge, root, or unloaded parent where the
+line ends; the column is reused only after that end. A commit continues its line in its
+first parent's column, other parents branch out into free columns, and the incoming line
+with the lowest permanent layout index continues at a join. `compact` keeps the earlier
+IntelliJ per-row comparator, where a later branch may reuse a column an earlier branch
+used above it. In both modes `position` and `adjacentPosition` are row-center lanes;
+endpoint rows record the node's lane, while a long edge's crossing rows record its own
+column. `rust/fixtures/git/graph-projection-v1.json` explicit `compact` requests define
+the IntelliJ rules and `rust/fixtures/git/graph-idea/` holds the pinned IntelliJ oracles.
 
 `git.changedFileGroups` groups the changed files of a commit, a stash or a shelf
 by folder; it never starts Git. The request is `{ "paths": string[] }`, the

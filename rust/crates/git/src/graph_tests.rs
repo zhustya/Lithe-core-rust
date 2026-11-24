@@ -33,6 +33,7 @@ fn new_request(commits: Vec<CommitInput>) -> Request {
         repository_commits: Vec::new(),
         visible_hashes: None,
         display_mode: DisplayMode::Compact,
+        lane_mode: LaneMode::Compact,
         current_branch: None,
         checked_out_heads: false,
     }
@@ -40,6 +41,12 @@ fn new_request(commits: Vec<CommitInput>) -> Request {
 
 fn layout(commits: Vec<CommitInput>) -> GraphProjection {
     project(&new_request(commits), COMPACT)
+}
+
+fn stable(commits: Vec<CommitInput>) -> GraphProjection {
+    let mut request = new_request(commits);
+    request.lane_mode = LaneMode::Stable;
+    project(&request, COMPACT)
 }
 
 fn filtered(commits: Vec<CommitInput>, visible: &[&str]) -> GraphProjection {
@@ -942,4 +949,87 @@ fn projects_five_thousand_commits_deterministically() {
     let sparse = project(&filtered_request, COMPACT);
     assert_eq!(sparse.rows.len(), count / 5);
     assert_continuity(&sparse);
+}
+
+// MARK: - stable lane columns
+
+#[test]
+fn stable_lanes_give_each_tip_its_own_column() {
+    let projection = stable(vec![
+        commit("m", &["s"], ""),
+        commit("fix", &["s"], ""),
+        commit("release", &["s"], ""),
+        commit("feature", &["s"], ""),
+        commit("s", &[], ""),
+    ]);
+    let lanes = projection
+        .rows
+        .iter()
+        .map(|row| row.lane)
+        .collect::<Vec<_>>();
+    assert_eq!(lanes.len(), 5);
+    let tips = lanes[..4].iter().copied().collect::<BTreeSet<_>>();
+    assert_eq!(tips.len(), 4, "two branch tips share a column: {lanes:?}");
+    assert_eq!(lanes[4], 0, "the base left the mainline: {lanes:?}");
+    assert!(
+        projection.lane_count >= 4,
+        "the four tips need four columns: {}",
+        projection.lane_count
+    );
+    assert_continuity(&projection);
+}
+
+#[test]
+fn stable_lanes_reuse_a_column_after_its_branch_ends() {
+    let projection = stable(vec![
+        commit("a", &["base"], ""),
+        commit("b", &["base"], ""),
+        commit("base", &["older"], ""),
+        commit("c", &["older"], ""),
+        commit("older", &[], ""),
+    ]);
+    let lanes = projection
+        .rows
+        .iter()
+        .map(|row| row.lane)
+        .collect::<Vec<_>>();
+    assert_eq!(lanes[0], 0, "{lanes:?}");
+    assert_ne!(lanes[1], lanes[0], "{lanes:?}");
+    assert_eq!(lanes[4], 0, "{lanes:?}");
+    assert_eq!(
+        lanes[3], lanes[1],
+        "the later fork did not reuse the ended branch's column: {lanes:?}"
+    );
+    assert_continuity(&projection);
+}
+
+#[test]
+fn request_accepts_a_stable_lane_mode() {
+    let projection = command(json!({
+        "commits": [
+            {"hash": "a", "parentHashes": ["b"]},
+            {"hash": "b"}
+        ],
+        "laneMode": "stable"
+    }))
+    .expect("laneMode is part of the request");
+    assert_eq!(projection["rows"].as_array().map(Vec::len), Some(2));
+}
+
+#[test]
+fn default_lane_mode_is_stable() {
+    assert_eq!(LaneMode::default(), LaneMode::Stable);
+    let mut request = new_request(vec![
+        commit("m", &["s"], ""),
+        commit("x", &["s"], ""),
+        commit("s", &[], ""),
+    ]);
+    request.lane_mode = LaneMode::default();
+    let lanes = project(&request, COMPACT)
+        .rows
+        .iter()
+        .map(|row| row.lane)
+        .collect::<Vec<_>>();
+    assert_ne!(lanes[0], lanes[1], "{lanes:?}");
+    assert_eq!(lanes[2], 0, "{lanes:?}");
 }
